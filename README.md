@@ -47,11 +47,21 @@ Errors return JSON `{"error": "..."}` with 400 (invalid input, insufficient bala
 
 ## How I used AI in this project
 
-> Fill this in with what actually happened. Specifics are what make it credible.
-
-- **Tool and role:** I used Claude as a pairing partner for design and code generation. (Be upfront that the code was AI-assisted.)
-- **What I asked it to do:** *(e.g. propose the architecture, generate entities/services/controllers, draft the test suite)*
-- **What I reviewed and verified myself:** *(e.g. ran every endpoint manually with PowerShell, checked that a retry with the same key moved money once, confirmed all tests pass)*
-- **What went wrong or needed fixing:** *(e.g. PowerShell mangled JSON quotes in curl; Spring Boot 4 vs 3 differences; anything else you hit)*
-- **What I changed or would change:** *(e.g. things you decided yourself)*
-- **What I learned:** *(e.g. why rollback only applies to unchecked exceptions, why idempotency needs a DB constraint as well as a check)*
+- **Tool and role:** I used Claude as a pairing partner for design and code generation. The code is AI-assisted: Claude generated most of it, and I ran, tested and debugged it. I also compared its project proposal against a second AI's, then chose the wallet/transfer API over a transaction-classifier idea because it exercises more of the real backend problems (transactions, retries, correctness).
+- **What I asked it to do:** propose the architecture, generate the entities, services, controllers and exception handler, write the unit and integration test suite, and explain concepts such as `@Transactional`, idempotency and locking as I went.
+- **What I reviewed and verified myself:**
+    - Ran every endpoint manually with PowerShell: create account, deposit, transfer, history.
+    - Tested the error paths: negative amount, unknown account, insufficient balance.
+    - Sent the same transfer twice with the same `Idempotency-Key` and confirmed the second returned the original transfer and balances changed only once (Alice 70.50, Bob 30.00).
+    - Ran the full test suite with Maven and confirmed it passes.
+- **What went wrong or needed fixing:**
+    - PowerShell mangled the JSON quotes with `curl`, so I switched to `Invoke-RestMethod` and sent JSON files for the error cases.
+    - I had picked Java 21 on Spring Initializr but my JDK was 17, so I changed it to 17 to match.
+    - The project was committed one folder too deep and included IDE files and scratch JSON files, so I restructured the repo and removed them.
+    - IntelliJ's Maven import failed with the Maven wrapper, so I switched it to the bundled Maven. The terminal build was unaffected.
+- **What I changed or would change:** I chose the project scope, the Java version and the decision to skip an LLM integration in favour of correctness and tests. Next I would add locking for concurrent transfers, response DTOs instead of returning entities, input validation, and a real database with migrations.
+- **What I learned:**
+    - `@Transactional` rolls back on unchecked exceptions and gives all-or-nothing per request, but it doesn't stop two concurrent requests overdrawing an account. That needs optimistic or pessimistic locking.
+    - Idempotency needs both an application check and a unique database constraint, because two identical requests can arrive at the same instant.
+    - A rollback test must not run inside a test-managed transaction, or it proves nothing.
+    - Money must be `BigDecimal`, not `double`.
